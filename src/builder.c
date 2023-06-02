@@ -5,6 +5,14 @@
 #include <stdlib.h>
 #include <string.h>
 
+#define CHECKED(expr)                                                                                                  \
+    {                                                                                                                  \
+        int rc = (expr);                                                                                               \
+        if (rc) {                                                                                                      \
+            return rc;                                                                                                 \
+        }                                                                                                              \
+    }
+
 static int write_header(trilogy_builder_t *builder)
 {
     int rc = trilogy_buffer_expand(builder->buffer, 4);
@@ -30,13 +38,31 @@ static int write_continuation_header(trilogy_builder_t *builder)
     builder->buffer->buff[builder->header_offset + 1] = 0xff;
     builder->buffer->buff[builder->header_offset + 2] = 0xff;
 
-    return write_header(builder);
+    size_t tmp = builder->buffer->len;
+
+    CHECKED(write_header(builder));
+
+    builder->buffer->continuation_headers_len += builder->buffer->len - tmp;
+
+    return TRILOGY_OK;
 }
 
-int trilogy_builder_init(trilogy_builder_t *builder, trilogy_buffer_t *buff, uint8_t seq)
+int trilogy_builder_init(trilogy_builder_t *builder, trilogy_buffer_t *buff, uint8_t seq, size_t max_packet_size)
 {
+    max_packet_size &= ~(size_t)(1024 - 1); // round it down to the nearest 1024
+
     builder->buffer = buff;
     builder->buffer->len = 0;
+    builder->buffer->cap = 1;
+    builder->buffer->continuation_headers_len = 4;
+    if (max_packet_size > 0) {
+        builder->buffer->max = max_packet_size;
+        if (builder->buffer->cap > max_packet_size) {
+            builder->buffer->cap = max_packet_size;
+        }
+    } else {
+        builder->buffer->max = SIZE_MAX;
+    }
 
     builder->seq = seq;
 
@@ -48,15 +74,9 @@ void trilogy_builder_finalize(trilogy_builder_t *builder)
     builder->buffer->buff[builder->header_offset + 0] = (builder->fragment_length >> 0) & 0xff;
     builder->buffer->buff[builder->header_offset + 1] = (builder->fragment_length >> 8) & 0xff;
     builder->buffer->buff[builder->header_offset + 2] = (builder->fragment_length >> 16) & 0xff;
-}
 
-#define CHECKED(expr)                                                                                                  \
-    {                                                                                                                  \
-        int rc = (expr);                                                                                               \
-        if (rc) {                                                                                                      \
-            return rc;                                                                                                 \
-        }                                                                                                              \
-    }
+    printf("finalize: len=%zu, len=%zu\n", builder->buffer->len, builder->buffer->continuation_headers_len);
+}
 
 int trilogy_builder_write_uint8(trilogy_builder_t *builder, uint8_t val)
 {

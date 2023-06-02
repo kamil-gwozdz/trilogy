@@ -9,7 +9,9 @@
  */
 typedef struct {
     size_t len;
-    size_t cap;
+    size_t cap; // current capacity
+    size_t max; // server-imposed maximum capacity
+    size_t continuation_headers_len;
     uint8_t *buff;
 } trilogy_buffer_t;
 

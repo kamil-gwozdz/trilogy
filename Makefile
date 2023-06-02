@@ -7,12 +7,17 @@ CFLAGS ?= -O1 -ggdb3
 CFLAGS += -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=2 -fstack-protector
 CFLAGS += -Wall -Werror -Wextra -pedantic -Wsign-conversion -Wno-missing-field-initializers -std=gnu99 -iquote inc
 
+
+
 OPENSSL = -lcrypto -lssl
 EXAMPLES = example/trilogy_query
 
 UNAME_S := $(shell uname -s)
 
-ifneq ($(UNAME_S), Darwin)
+ifeq ($(UNAME_S), Darwin)
+  LDFLAGS+=-L/opt/homebrew/opt/openssl@1.1/lib
+  CFLAGS+=-I/opt/homebrew/opt/openssl@1.1/include
+else
   CFLAGS += -fPIC
   LDFLAGS += -pie -Wl,-z,relro,-z,now
 endif
